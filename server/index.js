@@ -2,6 +2,8 @@ const express = require('express');
 const socketio = require('socket.io');
 const http = require('http');
 
+const { addUser, removeUser, getUser, getUserInRoom } = require('./users.js');
+
 const cors = require('cors');
 
 /* set PORT to 5000, when deploying PORT will use process.env.PORT settings
@@ -34,20 +36,39 @@ const io = require('socket.io')(server, {
 
 /* on the server-side we get a socket object which extends the Node.js EventEmitter class: */
 io.on('connection', (socket) => {
-  console.log('We have a new connection!!!');
-  socket.send('Helloo!');
+  // console.log('We have a new connection!!!');
 
   socket.on('join test', ({ name, room }, callback) => {
     console.log(name, room);
+    const { error, user } = addUser({ id: socket.id, name, room });
 
-    const error = true;
+    if (error) return callback(error);
 
-    // if (error) {
-    //   callback({error: 'testing error callback'});
-    // }
+    // user welcome message
+    socket.emit('message', {
+      user: 'admin',
+      text: `${user.name}, Welcome to the room${user.room}`,
+    });
+    // room broadcast message on user join
+    socket.broadcast
+      .to(user.room)
+      .emit('message', { user: 'admin', text: `${user.name}, has joined!` });
+
+    socket.join(user.room);
+
+    callback();
   });
   /* inside the io.on function use socket.on to manage this instance of the socket object which just joined */
-  socket.on('disconnect', () => {
+
+  socket.on('SendMessage', (message, callback) => {
+    const user = getUser(socket.id);
+
+    io.to(user.room).emit('message', { user: user.name, text: message });
+
+    callback();
+  });
+
+  socket.on('disconnect test', () => {
     console.log('User has left!');
   });
 });
